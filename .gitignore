@@ -1,0 +1,30 @@
+# Ignore build artifacts
+bin/
+obj/
+dist/
+
+# Ignore IDE-specific files
+.vscode/
+.idea/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Ignore OS-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore logs and temporary files
+*.log
+*.tmp
+*.swp
+
+# Ignore dependency directories
+node_modules/
+venv/
+__pycache__/
+
+# Ignore secrets
+.env
+appsettings.Development.json
