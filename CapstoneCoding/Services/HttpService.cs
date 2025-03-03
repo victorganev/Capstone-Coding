@@ -1,0 +1,1 @@
+//Once code starts piling up in Program.cs use this file to handle all the HTTP requests. Create functions to grab the data from the website in question, etc.
