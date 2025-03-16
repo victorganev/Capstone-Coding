@@ -15,26 +15,36 @@ class Program
         // Fetch the HTML content
             //Fetching content from Zacks Investment here
         using var httpClient = new HttpClient();
-        var htmlContent = await httpClient.GetStringAsync("https://www.zacks.com/stock/quote/" + stockTicker +"?q=" + stockTicker);
+        var zacksHtmlContent = await httpClient.GetStringAsync("https://www.zacks.com/stock/quote/" + stockTicker +"?q=" + stockTicker);
 
-        // Debugging - print raw htmlContent 
-        // Console.WriteLine(htmlContent);
+            //Fetching content from Finviz
+        var finvizHtmlContent = await httpClient.GetStringAsync("https://finviz.com/quote.ashx?t=" + stockTicker + "&ty=c&ta=1&p=d");
+
+        // Debugging - print raw HtmlContent 
+        // Console.WriteLine(zacksHtmlContent);
+        // Console.WriteLine(finvizHtmlContent);
 
         // Use regex to extract the chunk of HTML containing the needed data
             //Zacks Rank variables
         string zr_RegexPattern = @"<p class=""rank_view"">.*?</p>";
-        Match zr_match = Regex.Match(htmlContent, zr_RegexPattern, RegexOptions.Singleline);
+        Match zr_match = Regex.Match(zacksHtmlContent, zr_RegexPattern, RegexOptions.Singleline);
         Match zr_matchFinal = null;
 
             //Stock price variables
         string price_RegexPattern = @"<p class=""last_price"">.*?</p>";
-        Match price_match = Regex.Match(htmlContent, price_RegexPattern, RegexOptions.Singleline);
+        Match price_match = Regex.Match(zacksHtmlContent, price_RegexPattern, RegexOptions.Singleline);
         Match price_matchFinal = null;
 
             //Open price variables
         string open_RegexPattern = @"<section id=""stock_activity"">.*?</section>";
-        Match open_match = Regex.Match(htmlContent, open_RegexPattern, RegexOptions.Singleline);
+        Match open_match = Regex.Match(zacksHtmlContent, open_RegexPattern, RegexOptions.Singleline);
         Match open_matchFinal = null;
+
+        //Finviz below
+            //General stock data table variables
+        string finvizGenData_RegexPattern = @"<table[^>]*class=""[^""]*js-snapshot-table[^""]*"".*?>.*?</table>";
+        Match finvizGenData_match = Regex.Match(finvizHtmlContent, finvizGenData_RegexPattern, RegexOptions.Singleline);
+        Match finvizGenData_matchFinal = null;
 
         //Checking success of regex match for Zacks Rank, then using additional regex to single out the data needed
         if (zr_match.Success)
@@ -90,7 +100,7 @@ class Program
 
         List<string> stockDataList = new List<string>();
 
-        //Checking success of regex match for the opening price, then using
+        //Checking success of regex match for the opening price, then using HAP to grab the nodes containing the text data
          if (open_match.Success)
         {
             string extractedChunk = open_match.Value;
@@ -103,7 +113,7 @@ class Program
             var dtNodes = htmlDoc.DocumentNode.SelectNodes("//dt");
             var ddNodes = htmlDoc.DocumentNode.SelectNodes("//dd");
 
-            //Filtering for inner text of elements and organizing into key-value list
+            //Filtering for inner text of html elements and organizing into key-value list
             if (dtNodes != null && ddNodes != null && dtNodes.Count == ddNodes.Count)
             {
                 for (int i = 0; i < dtNodes.Count; i++)
@@ -123,6 +133,53 @@ class Program
             {
                 Console.WriteLine(data);
             }
+        }
+
+        //Checking the success of finvizGenData regex match, then using HAP to grab the table data
+        if (finvizGenData_match.Success)
+        {
+            string extractedChunk = finvizGenData_match.Value;
+
+            // Setup for HAP parsing
+            var htmlDoc = new HtmlDocument();
+            htmlDoc.LoadHtml(extractedChunk);
+
+            // Select all rows in the table
+            var rows = htmlDoc.DocumentNode.SelectNodes("//tr");
+
+            if (rows != null)
+            {
+                List<string> finvizDataList = new List<string>();
+
+                foreach (var row in rows)
+                {
+                    var cells = row.SelectNodes("td");
+                    if (cells != null)
+                    {
+                        // Process cells in pairs
+                        for (int i = 0; i < cells.Count - 1; i += 2)
+                        {
+                            string key = cells[i].InnerText.Trim();
+                            string value = cells[i + 1].InnerText.Trim();
+                            finvizDataList.Add($"{key}: {value}");
+                        }
+                    }
+                }
+
+                Console.WriteLine("General data from Finviz:");
+                foreach (var data in finvizDataList)
+                {
+                    Console.WriteLine(data);
+                }
+            }
+            else
+            {
+                Console.WriteLine("No rows found in the Finviz data table.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No matching chunk found for Finviz data.");
         }
 
 
