@@ -5,6 +5,8 @@ using System.Threading.Tasks;
 using System.Collections.Generic;
 using HtmlAgilityPack;
 
+using Models;
+
 class Program
 {
     static async Task Main(string[] args)
@@ -33,18 +35,19 @@ class Program
             //Stock price variables
         string price_RegexPattern = @"<p class=""last_price"">.*?</p>";
         Match price_match = Regex.Match(zacksHtmlContent, price_RegexPattern, RegexOptions.Singleline);
-        Match price_matchFinal = null;
 
             //Open price variables
         string open_RegexPattern = @"<section id=""stock_activity"">.*?</section>";
         Match open_match = Regex.Match(zacksHtmlContent, open_RegexPattern, RegexOptions.Singleline);
-        Match open_matchFinal = null;
 
         //Finviz below
             //General stock data table variables
         string finvizGenData_RegexPattern = @"<table[^>]*class=""[^""]*js-snapshot-table[^""]*"".*?>.*?</table>";
         Match finvizGenData_match = Regex.Match(finvizHtmlContent, finvizGenData_RegexPattern, RegexOptions.Singleline);
-        Match finvizGenData_matchFinal = null;
+
+            //Analyst action table variables
+        string finvizAnalystData_RegexPattern = @"<table[^>]*class=""[^""]*js-table-ratings[^""]*styled-table-new[^""]*"".*?>.*?</table>";
+        Match finvizAnalystData_match = Regex.Match(finvizHtmlContent, finvizAnalystData_RegexPattern, RegexOptions.Singleline);
 
         //Checking success of regex match for Zacks Rank, then using additional regex to single out the data needed
         if (zr_match.Success)
@@ -182,6 +185,55 @@ class Program
             Console.WriteLine("No matching chunk found for Finviz data.");
         }
 
+        //Checking the success of finvizAnalystData regex match, then using HAP to grab the table data
+        if (finvizAnalystData_match.Success)
+        {
+            string extractedChunk = finvizAnalystData_match.Value;
+
+            // Setup for HAP parsing
+            var htmlDoc = new HtmlDocument();
+            htmlDoc.LoadHtml(extractedChunk);
+
+            // Select all rows in the table
+            var rows = htmlDoc.DocumentNode.SelectNodes("//tr");
+
+            if (rows != null)
+            {
+                List<AnalystAction> analystActions = new List<AnalystAction>();
+
+                foreach (var row in rows)
+                {
+                    var cells = row.SelectNodes("td");
+                    if (cells != null && cells.Count >= 5) // Ensure there are enough cells in the row
+                    {
+                        var analystAction = new AnalystAction
+                        {
+                            Date = cells[0].InnerText.Trim(),
+                            Action = cells[1].InnerText.Trim(),
+                            Analyst = cells[2].InnerText.Trim(),
+                            RatingChange = cells[3].InnerText.Trim(),
+                            PriceTargetChange = cells[4].InnerText.Trim().Replace("&rarr;", "to").Trim()
+                        };
+
+                        analystActions.Add(analystAction);
+                    }
+                }
+
+                Console.WriteLine("Analyst Actions from Finviz:");
+                foreach (var action in analystActions)
+                {
+                    Console.WriteLine(action);
+                }
+            }
+            else
+            {
+                Console.WriteLine("No rows found in the Finviz Analyst Actions table.");
+            }
+        }
+        else
+        {
+            Console.WriteLine("No matching chunk found for Finviz Analyst Actions data.");
+        }
 
     }
 }

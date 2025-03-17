@@ -1,1 +1,0 @@
-//As certain data patterns emerge, create and define custom models in here.
