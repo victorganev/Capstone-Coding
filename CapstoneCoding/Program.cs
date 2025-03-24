@@ -1,135 +1,55 @@
 ﻿using System;
-using System.Net.Http;
-using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Collections.Generic;
-using HtmlAgilityPack;
-
+using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 using Models;
+using Services;
+
 
 class Program
 {
     static async Task Main(string[] args)
     {
-        //Variable allowing user to choose stock ticker, will need to expand upon this functionality with UI
         var stockTicker = "NVDA";
 
-        // Fetch the HTML content
-            //Fetching content from Zacks Investment here
-        using var httpClient = new HttpClient();
-        var zacksHtmlContent = await httpClient.GetStringAsync("https://www.zacks.com/stock/quote/" + stockTicker +"?q=" + stockTicker);
+        // Fetch HTML content
+        var zacksHtmlContent = await HttpService.FetchHtmlContentAsync($"https://www.zacks.com/stock/quote/{stockTicker}?q={stockTicker}");
+        var finvizHtmlContent = await HttpService.FetchHtmlContentAsync($"https://finviz.com/quote.ashx?t={stockTicker}&ty=c&ta=1&p=d");
 
-            //Fetching content from Finviz
-        var finvizHtmlContent = await httpClient.GetStringAsync("https://finviz.com/quote.ashx?t=" + stockTicker + "&ty=c&ta=1&p=d");
+        // Extract Zacks Rank
+        string zacksRankPattern = @"<p class=""rank_view"">.*?</p>";
+        Match zacksRankMatch = RegexParsing.ExtractHtmlChunk(zacksHtmlContent, zacksRankPattern);
 
-        // Debugging - print raw HtmlContent 
-        // Console.WriteLine(zacksHtmlContent);
-        // Console.WriteLine(finvizHtmlContent);
-
-        // Use regex to extract the chunk of HTML containing the needed data
-            //Zacks Rank variables
-        string zr_RegexPattern = @"<p class=""rank_view"">.*?</p>";
-        Match zr_match = Regex.Match(zacksHtmlContent, zr_RegexPattern, RegexOptions.Singleline);
-        Match zr_matchFinal = null;
-
-            //Stock price variables
-        string price_RegexPattern = @"<p class=""last_price"">.*?</p>";
-        Match price_match = Regex.Match(zacksHtmlContent, price_RegexPattern, RegexOptions.Singleline);
-
-            //Open price variables
-        string open_RegexPattern = @"<section id=""stock_activity"">.*?</section>";
-        Match open_match = Regex.Match(zacksHtmlContent, open_RegexPattern, RegexOptions.Singleline);
-
-        //Finviz below
-            //General stock data table variables
-        string finvizGenData_RegexPattern = @"<table[^>]*class=""[^""]*js-snapshot-table[^""]*"".*?>.*?</table>";
-        Match finvizGenData_match = Regex.Match(finvizHtmlContent, finvizGenData_RegexPattern, RegexOptions.Singleline);
-
-            //Analyst action table variables
-        string finvizAnalystData_RegexPattern = @"<table[^>]*class=""[^""]*js-table-ratings[^""]*styled-table-new[^""]*"".*?>.*?</table>";
-        Match finvizAnalystData_match = Regex.Match(finvizHtmlContent, finvizAnalystData_RegexPattern, RegexOptions.Singleline);
-
-        //Checking success of regex match for Zacks Rank, then using additional regex to single out the data needed
-        if (zr_match.Success)
+        if (zacksRankMatch.Success)
         {
-            string extractedChunk = zr_match.Value;
-
-            // Further process the extracted chunk to extract the "Zacks Rank" text
             string rankPattern = @"\b\d-(Strong Buy|Buy|Hold|Sell|Strong Sell)\b";
-            zr_matchFinal = Regex.Match(extractedChunk, rankPattern);
-
-            //For testing sakes
-            if (zr_matchFinal.Success)
+            Match rankMatch = RegexParsing.ExtractHtmlChunk(zacksRankMatch.Value, rankPattern);
+            if (rankMatch.Success)
             {
-                Console.WriteLine("Zacks Rank Extracted Value: " + zr_matchFinal.Value);
-            }
-            else
-            {
-                Console.WriteLine("Rank value not found in the extracted chunk.");
+                Console.WriteLine($"Zacks Rank: {rankMatch.Value}");
             }
         }
-        else
+
+        // Extract stock price
+        string pricePattern = @"<p class=""last_price"">.*?</p>";
+        Match priceMatch = RegexParsing.ExtractHtmlChunk(zacksHtmlContent, pricePattern);
+
+        if (priceMatch.Success)
         {
-            Console.WriteLine("No matching chunk found.");
+            string price = HAPParsing.ParseSingleNode(priceMatch.Value, "//p[@class='last_price']");
+            Console.WriteLine($"Stock Price: {price}");
         }
+        
+        // Extract opening price data
+        string openRegexPattern = @"<section id=""stock_activity"">.*?</section>";
+        Match openMatch = RegexParsing.ExtractHtmlChunk(zacksHtmlContent, openRegexPattern);
 
-        //Checking success of regex match for stock price, then using HAP library to single out stock price data
-        if (price_match.Success)
+        if (openMatch.Success)
         {
-            string extractedChunk = price_match.Value;
+            string extractedChunk = openMatch.Value;
 
-            // Step 2: Use HtmlAgilityPack to parse the extracted chunk
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(extractedChunk);
-
-            // Use XPath to get the text content of the <p> element
-            var pNode = htmlDoc.DocumentNode.SelectSingleNode("//p[@class='last_price']");
-
-            if (pNode != null)
-            {
-                // Extract the text value (excluding the <span> content)
-                string priceText = pNode.FirstChild.InnerText.Trim();
-                Console.WriteLine("Extracted Price: " + priceText);
-            }
-            else
-            {
-                Console.WriteLine("Could not find the <p> element with class 'last_price'.");
-            }
-        }
-        else
-        {
-            Console.WriteLine("No matching <p> element found.");
-        }
-
-        List<string> stockDataList = new List<string>();
-
-        //Checking success of regex match for the opening price, then using HAP to grab the nodes containing the text data
-         if (open_match.Success)
-        {
-            string extractedChunk = open_match.Value;
-
-            //Setup for HAP parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(extractedChunk);
-
-            //Grabbing both <dt> and <dd> elements from extractedChunk
-            var dtNodes = htmlDoc.DocumentNode.SelectNodes("//dt");
-            var ddNodes = htmlDoc.DocumentNode.SelectNodes("//dd");
-
-            //Filtering for inner text of html elements and organizing into key-value list
-            if (dtNodes != null && ddNodes != null && dtNodes.Count == ddNodes.Count)
-            {
-                for (int i = 0; i < dtNodes.Count; i++)
-                {
-                    string key = dtNodes[i].InnerText.Trim();
-                    string value = ddNodes[i].InnerText.Trim();
-                    stockDataList.Add($"{key}: {value}");
-                }
-            }
-            else
-            {
-                Console.WriteLine("dtNodes and ddNodes do not have equal lengths or one or both is null.");
-            }
+            // Use HAPParsing to parse the stock activity data
+            var stockDataList = HAPParsing.ParseStockActivityData(extractedChunk);
 
             Console.WriteLine("General data about " + stockTicker + " from Stock Activity column on Zacks:");
             foreach (var data in stockDataList)
@@ -137,103 +57,50 @@ class Program
                 Console.WriteLine(data);
             }
         }
-
-        //Checking the success of finvizGenData regex match, then using HAP to grab the table data
-        if (finvizGenData_match.Success)
-        {
-            string extractedChunk = finvizGenData_match.Value;
-
-            // Setup for HAP parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(extractedChunk);
-
-            // Select all rows in the table
-            var rows = htmlDoc.DocumentNode.SelectNodes("//tr");
-
-            if (rows != null)
-            {
-                List<string> finvizDataList = new List<string>();
-
-                foreach (var row in rows)
-                {
-                    var cells = row.SelectNodes("td");
-                    if (cells != null)
-                    {
-                        // Process cells in pairs
-                        for (int i = 0; i < cells.Count - 1; i += 2)
-                        {
-                            string key = cells[i].InnerText.Trim();
-                            string value = cells[i + 1].InnerText.Trim();
-                            finvizDataList.Add($"{key}: {value}");
-                        }
-                    }
-                }
-
-                Console.WriteLine("General data from Finviz:");
-                foreach (var data in finvizDataList)
-                {
-                    Console.WriteLine(data);
-                }
-            }
-            else
-            {
-                Console.WriteLine("No rows found in the Finviz data table.");
-            }
-        }
         else
         {
-            Console.WriteLine("No matching chunk found for Finviz data.");
+            Console.WriteLine("No matching chunk found for stock activity data.");
         }
 
-        //Checking the success of finvizAnalystData regex match, then using HAP to grab the table data
-        if (finvizAnalystData_match.Success)
+        // Extract general stock data from Finviz
+        string finvizGenDataPattern = @"<table[^>]*class=""[^""]*js-snapshot-table[^""]*"".*?>.*?</table>";
+        Match finvizGenDataMatch = RegexParsing.ExtractHtmlChunk(finvizHtmlContent, finvizGenDataPattern);
+
+        if (finvizGenDataMatch.Success)
         {
-            string extractedChunk = finvizAnalystData_match.Value;
+            Console.WriteLine("\n\nGeneral data about " + stockTicker + " from Finviz:");
 
-            // Setup for HAP parsing
-            var htmlDoc = new HtmlDocument();
-            htmlDoc.LoadHtml(extractedChunk);
-
-            // Select all rows in the table
-            var rows = htmlDoc.DocumentNode.SelectNodes("//tr");
-
-            if (rows != null)
+            var generalData = HAPParsing.ParseKeyValuePairs(finvizGenDataMatch.Value, "//td[1]", "//td[2]");
+            foreach (var data in generalData)
             {
-                List<AnalystAction> analystActions = new List<AnalystAction>();
-
-                foreach (var row in rows)
-                {
-                    var cells = row.SelectNodes("td");
-                    if (cells != null && cells.Count >= 5) // Ensure there are enough cells in the row
-                    {
-                        var analystAction = new AnalystAction
-                        {
-                            Date = cells[0].InnerText.Trim(),
-                            Action = cells[1].InnerText.Trim(),
-                            Analyst = cells[2].InnerText.Trim(),
-                            RatingChange = cells[3].InnerText.Trim(),
-                            PriceTargetChange = cells[4].InnerText.Trim().Replace("&rarr;", "to").Trim()
-                        };
-
-                        analystActions.Add(analystAction);
-                    }
-                }
-
-                Console.WriteLine("Analyst Actions from Finviz:");
-                foreach (var action in analystActions)
-                {
-                    Console.WriteLine(action);
-                }
-            }
-            else
-            {
-                Console.WriteLine("No rows found in the Finviz Analyst Actions table.");
+                Console.WriteLine(data);
             }
         }
-        else
+
+        // Extract analyst actions
+        string analystActionsPattern = @"<table[^>]*class=""[^""]*js-table-ratings[^""]*styled-table-new[^""]*"".*?>.*?</table>";
+        Match analystActionsMatch = RegexParsing.ExtractHtmlChunk(finvizHtmlContent, analystActionsPattern);
+
+        if (analystActionsMatch.Success)
         {
-            Console.WriteLine("No matching chunk found for Finviz Analyst Actions data.");
+            var analystActions = HAPParsing.ParseAnalystActions(analystActionsMatch.Value);
+            foreach (var action in analystActions)
+            {
+                Console.WriteLine(action);
+            }
         }
 
+        // Extract insider trading data
+        string insiderTradingPattern = @"<table[^>]*class=""[^""]*styled-table-new[^""]*""[^>]*>.*?<th[^>]*>Insider Trading</th>.*?</table>";
+        Match insiderTradingMatch = RegexParsing.ExtractHtmlChunk(finvizHtmlContent, insiderTradingPattern);
+
+        if (insiderTradingMatch.Success)
+        {
+            var insiderData = HAPParsing.ParseInsiderTradingTable(insiderTradingMatch.Value);
+            foreach (var data in insiderData)
+            {
+                Console.WriteLine(data);
+            }
+        }
     }
 }
