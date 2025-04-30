@@ -1,0 +1,31 @@
+﻿@page "/"
+@inject HttpClient Http
+
+<h3>Stock Data</h3>
+
+<p>Enter a stock ticker:</p>
+<input @bind="StockTicker" placeholder="Enter stock ticker" />
+<button @onclick="FetchStockData">Get Stock Data</button>
+
+@if (StockDataList != null)
+{
+    <h4>Stock Activity Data:</h4>
+    <ul>
+        @foreach (var data in StockDataList)
+        {
+            <li>@data</li>
+        }
+    </ul>
+}
+
+@code {
+    private string StockTicker = "NVDA";
+    private List<string> StockDataList;
+
+    private async Task FetchStockData()
+    {
+        // Call your backend API to fetch stock data
+        var response = await Http.GetStringAsync($"https://localhost:5001/api/stockdata?ticker={StockTicker}");
+        StockDataList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(response);
+    }
+}
