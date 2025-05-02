@@ -1,31 +1,290 @@
 ﻿@page "/"
 @inject HttpClient Http
+@inject IStockDataService StockDataService
+@using Models
+@using System
 
 <h3>Stock Data</h3>
 
-<p>Enter a stock ticker:</p>
-<input @bind="StockTicker" placeholder="Enter stock ticker" />
-<button @onclick="FetchStockData">Get Stock Data</button>
-
-@if (StockDataList != null)
+<p>
+    Enter a stock ticker:
+    <input @bind="Ticker" placeholder="Enter stock ticker" />
+    <button @onclick="FetchData">Get Data</button>
+</p>
+<!--Information from Zacks is the upper portion, candlestick graph is the lower portion of this if statement -->
+@if (ZacksData != null)
 {
-    <h4>Stock Activity Data:</h4>
-    <ul>
-        @foreach (var data in StockDataList)
+    <div class="data-container">
+        <div class="stock-activity">
+            <h4>Zacks Rank</h4>
+            <p>@ZacksData["ZacksRank"]</p>
+
+            <h4>Current Price</h4>
+            <p>@ZacksData["StockPrice"]</p>
+
+            @if (StockActivityData != null && StockActivityData.Any())
+            {
+                <h4>Stock Activity Data</h4>
+                <table class="data-table ">
+                    <tbody>
+                        @foreach (var entry in StockActivityData)
+                        {
+                            <tr>
+                                <td>@entry.Key</td>
+                                <td>@entry.Value</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>No stock activity data available.</p>
+            }
+        </div>
+        
+        
+        @if (GraphData != null && GraphData.Any())
         {
-            <li>@data</li>
+            <div class="graph-container">
+                <h4>Candlestick Graph</h4>
+                <SfChart>
+                    <ChartPrimaryXAxis ValueType="Syncfusion.Blazor.Charts.ValueType.DateTime" LabelFormat="MMM dd yyyy" Title="Date"></ChartPrimaryXAxis>
+                    <ChartPrimaryYAxis Title="Price"></ChartPrimaryYAxis>
+                    <ChartSeriesCollection>
+                        <ChartSeries DataSource="@GraphData"
+                        XName="Date" High="High" Low="Low" Open="Open" Close="Close" Type="ChartSeriesType.Candle">
+                        </ChartSeries>
+                    </ChartSeriesCollection>
+                </SfChart>
+
+            </div>
         }
-    </ul>
+        else
+        {
+            <p>No graph data available.</p>
+        }
+    </div>
+}
+
+<!-- Key-Value pair data table displayed below in a 7x11 format -->
+@if (GeneralData != null && GeneralData.Any())
+{
+    <h4 class="new-section">General Stock Data</h4>
+    <table class="data-table">
+        <tbody>
+            @foreach (var chunk in GeneralData.Select((entry, index) => new { entry, index })
+                                             .GroupBy(x => x.index / 7))
+            {
+                <tr>
+                    @foreach (var item in chunk)
+                    { 
+                        <td><strong>@item.entry.Key</strong>: @item.entry.Value</td>
+                    }
+                    @for (int i = chunk.Count(); i < 7; i++) // Fill empty cells if the row has fewer than 7 items
+                    {
+                        <td></td>
+                    }
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<!-- Table displaying the most recent analyst ratings -->
+@if (AnalystActions != null && AnalystActions.Any())
+{
+    <h4 class="new-section"> Analyst Actions</h4>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Action</th>
+                <th>Analyst</th>
+                <th>Rating Change</th>
+                <th>Price Target Change</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var action in AnalystActions)
+            {
+                //Put in styling for the rating change column based on the rating change value, could make this dynamic in the future - trim the last word and use that to determine color
+                <tr>
+                    <td>@action.Date</td>
+                    <td>@action.Action</td>
+                    <td>@action.Analyst</td>
+                    <td class="@(
+                        action.RatingChange == "Hold" || action.RatingChange == "Perform" || action.RatingChange == "Neutral" ? "gray" : 
+                        action.RatingChange == "Underweight" || action.RatingChange == "Underperform" || action.RatingChange == "Hold to Underperform" || action.RatingChange == "Neutral to Sell" ? "red" : 
+                        action.RatingChange == "Overweight" || action.RatingChange == "Buy" || action.RatingChange == "Outperform" ? "green" :
+                        "gray")">
+                        @action.RatingChange</td>
+                    <td>@action.PriceTargetChange</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<!-- Table displaying the most recent insider trades  -->
+@if (InsiderTradingData != null && InsiderTradingData.Any())
+{
+    <h4 class="new-section">Insider Trading Data</h4>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Insider</th>
+                <th>Relationship</th>
+                <th>Date</th>
+                <th>Transaction</th>
+                <th>Cost</th>
+                <th>Shares</th>
+                <th>Value</th>
+                <th>Total Shares</th>
+                <th>SEC Date</th>
+                <th>SEC Link</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var insider in InsiderTradingData)
+            { //Same styling as above for the transaction column, could be made dynamic in the future
+                <tr> 
+                    <td>@insider.InsiderTrading</td>
+                    <td>@insider.Relationship</td>
+                    <td>@insider.Date</td>
+                    <td class="@(
+                    insider.Transaction == "Sale" || insider.Transaction == "Proposed Sale" ? "red" :
+                    insider.Transaction == "Buy" || insider.Transaction == "Proposed Buy" ? "green" :
+                    "gray")">
+                    @insider.Transaction</td>
+                    <td>$@insider.Cost</td>
+                    <td>@insider.Shares</td>
+                    <td>$@insider.Value</td>
+                    <td>@insider.SharesTotal</td>
+                    <td>@insider.SecDate</td>
+                    <td><a href="@insider.SecLink" target="_blank">Form Link</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p>No data available.</p>
 }
 
 @code {
-    private string StockTicker = "NVDA";
-    private List<string> StockDataList;
+    private string Ticker = "AAPL"; // Default stock ticker
+    private Dictionary<string, object> ZacksData;
+    private Dictionary<string, object> FinvizData;
+    private List<CandlestickData> GraphData;
+    private Dictionary<string, string> StockActivityData;
+    private Dictionary<string, string> GeneralData;
+    private List<AnalystAction> AnalystActions;
+    private List<InsiderTradingData> InsiderTradingData;
 
-    private async Task FetchStockData()
+    //Called when the user clicks the button to fetch data. Could be broken up into smaller methods in the future.
+    private async Task FetchData()
     {
-        // Call your backend API to fetch stock data
-        var response = await Http.GetStringAsync($"https://localhost:5001/api/stockdata?ticker={StockTicker}");
-        StockDataList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(response);
+        try
+        {
+            // Fetch Zacks data
+            ZacksData = await StockDataService.GetZacksData(Ticker);
+
+            if (ZacksData != null && ZacksData.ContainsKey("StockActivityData"))
+            {
+                var stockActivityList = ZacksData["StockActivityData"] as System.Text.Json.JsonElement?;
+                if (stockActivityList.HasValue)
+                {
+                    StockActivityData = System.Text.Json.JsonSerializer.Deserialize<List<string>>(stockActivityList.Value.GetRawText())
+                        .Select(item =>
+                        {
+                            var parts = item.Split(':', 2);
+                            return new KeyValuePair<string, string>(parts[0].Trim(), parts[1].Trim());
+                        })
+                        .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+                }
+            }
+
+            // Fetch Finviz data
+            FinvizData = await StockDataService.GetFinvizData(Ticker);
+
+            if (FinvizData != null)
+            {
+                if(FinvizData.ContainsKey("GeneralData"))
+                {
+                    var generalDataElement = FinvizData["GeneralData"] as System.Text.Json.JsonElement?;
+
+                    if (generalDataElement.HasValue)
+                    {
+                        // Deserialize GeneralData as a List<string>
+                        var generalDataList = System.Text.Json.JsonSerializer.Deserialize<List<string>>(generalDataElement.Value.GetRawText());
+
+                        // Process GeneralData to keep only the first value for each key
+                        GeneralData = generalDataList
+                            .Select(item =>
+                            {
+                                var parts = item.Split(':', 2);
+                                return new KeyValuePair<string, string>(parts[0].Trim(), parts[1].Trim());
+                            })
+                            .GroupBy(kvp => kvp.Key) // Group by key
+                            .ToDictionary(
+                                group => group.Key,
+                                group => group.First().Value // Keep only the first value for each key
+                            );
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("GeneralData not found in FinvizData.");
+                }
+
+                if (FinvizData.ContainsKey("AnalystActions"))
+                {
+                    var analystActionsList = FinvizData["AnalystActions"] as System.Text.Json.JsonElement?;
+
+                    if (analystActionsList.HasValue)
+                    {
+                        AnalystActions = System.Text.Json.JsonSerializer.Deserialize<List<AnalystAction>>(analystActionsList.Value.GetRawText());
+                    }     
+                }
+                else
+                {
+                    Console.WriteLine("AnalystActions not found in FinvizData.");
+                }
+
+                if (FinvizData.ContainsKey("InsiderTradingData"))
+                {
+                    var insiderTradingList = FinvizData["InsiderTradingData"] as System.Text.Json.JsonElement?;
+                    if (insiderTradingList.HasValue)
+                    {
+                        InsiderTradingData = System.Text.Json.JsonSerializer.Deserialize<List<InsiderTradingData>>(insiderTradingList.Value.GetRawText());
+                    }
+                }
+                else
+                {
+                    Console.WriteLine("InsiderTradingData not found in FinvizData.");
+                }
+            }
+                }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching data: {ex.Message}");
+        }
+
+        try
+        {
+            // Fetch Graph data
+            GraphData = await StockDataService.GetGraphData(Ticker);
+
+            if (GraphData == null || !GraphData.Any())
+            {
+                Console.WriteLine("GraphData not found or is empty.");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Error fetching graph data: {ex.Message}");
+        }
     }
 }

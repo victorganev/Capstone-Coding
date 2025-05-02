@@ -101,9 +101,64 @@ a, .btn-link {
 code {
     color: #c02d76;
 }
+/* Blazor styling above */
 
-/* My own styles */
-center {
-    display: block;
-    text-align: center;
+/* My own styles below */
+
+.new-section {
+    margin-top: 2rem;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+    font-size: 16px;
+    text-align: left;
+}
+
+.data-table th, .data-table td {
+    border: 1px solid #ddd;
+    padding: 8px;
+}
+
+.data-table th {
+    background-color: #f4f4f4;
+    font-weight: bold;
+}
+
+.data-table tr:hover {
+    background-color: #f1f1f1;
+}
+
+/* Simple CSS class to color table text */
+.red {
+    color: red;
+}
+
+.green {
+    color: green;
+}
+
+.gray {
+    color: gray;
+}
+
+/* CSS classes to split the space between the candlestick graph and the Zacks data */
+.data-container {
+    display: flex;
+    width: 100%;
+    gap: 1rem; 
+}
+
+.stock-activity {
+    width: 16%; 
+}
+
+.graph-container {
+    width: 84%; 
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
 }
