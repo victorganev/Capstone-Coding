@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Services;
 using Models;
 using System.Text.RegularExpressions;
+using System.Text.Json;
 
 namespace Controller
 {
@@ -146,8 +147,35 @@ namespace Controller
 
                 if (graphDataMatch.Success)
                 {
-                    string graphData = graphDataMatch.Groups[1].Value;
-                    return Ok(graphData);
+                    string graphDataJson = graphDataMatch.Groups[1].Value;
+
+                    // Deserialize the JSON into a dictionary
+                    var graphData = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(graphDataJson);
+
+                    // Extract data arrays
+                    var dates = graphData["date"].EnumerateArray().Select(d => DateTimeOffset.FromUnixTimeSeconds(d.GetInt64()).DateTime).ToList();
+                    var opens = graphData["open"].EnumerateArray().Select(o => o.GetDouble()).ToList();
+                    var highs = graphData["high"].EnumerateArray().Select(h => h.GetDouble()).ToList();
+                    var lows = graphData["low"].EnumerateArray().Select(l => l.GetDouble()).ToList();
+                    var closes = graphData["close"].EnumerateArray().Select(c => c.GetDouble()).ToList();
+                    var volumes = graphData["volume"].EnumerateArray().Select(v => v.GetDouble()).ToList();
+
+                    // Create a list of CandlestickData
+                    var candlestickDataList = new List<CandlestickData>();
+                    for (int i = 0; i < dates.Count(); i++)
+                    {
+                        candlestickDataList.Add(new CandlestickData
+                        {
+                            Date = dates[i],
+                            Open = opens[i],
+                            High = highs[i],
+                            Low = lows[i],
+                            Close = closes[i],
+                            Volume = volumes[i]
+                        });
+                    }
+
+                    return Ok(candlestickDataList);
                 }
                 else
                 {
@@ -160,11 +188,5 @@ namespace Controller
             }
         }
 
-        // Test endpoint
-        [HttpGet("test")]
-        public IActionResult Test()
-        {
-            return Ok("API is working!");
-        }
     }
 }

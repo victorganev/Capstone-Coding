@@ -1,13 +1,13 @@
-//Use this file to handle all HtmlAgilityPack (HAP) parsing. Any functionality related to HAP parsing goes in here.
-
 using System.Collections.Generic;
 using HtmlAgilityPack;
 using Models;
 
+// Service file for parsing HTML content using HtmlAgilityPack
 namespace Services
 {
     public static class HAPParsing
     {
+        // Method to parse a single node from HTML using XPath, used for a specific element
         public static string ParseSingleNode(string htmlChunk, string xpath)
         {
             var htmlDoc = new HtmlDocument();
@@ -17,6 +17,7 @@ namespace Services
             return node?.InnerText.Trim();
         }
 
+        // Method to parse key-value pairs from HTML using XPath
         public static List<string> ParseKeyValuePairs(string htmlChunk, string keyXPath, string valueXPath)
         {
             var htmlDoc = new HtmlDocument();
@@ -53,6 +54,7 @@ namespace Services
             return keyValuePairs;
         }
 
+        // Method to parse analyst actions from HTML using XPath
         public static List<AnalystAction> ParseAnalystActions(string htmlChunk)
         {
             var htmlDoc = new HtmlDocument();
@@ -85,6 +87,7 @@ namespace Services
             return analystActions;
         }
 
+        // Method to parse insider trading data from HTML using XPath
         public static List<InsiderTradingData> ParseInsiderTradingTable(string htmlChunk)
         {
             var htmlDoc = new HtmlDocument();
@@ -126,6 +129,7 @@ namespace Services
             return insiderDataList;
         }
 
+        // Method to parse stock activity data from HTML using XPath
         public static List<string> ParseStockActivityData(string htmlChunk)
         {
             var htmlDoc = new HtmlDocument();

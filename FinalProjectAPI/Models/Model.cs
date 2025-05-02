@@ -1,4 +1,4 @@
-//As certain data patterns emerge, create and define custom models in here.
+using System.Text.Json.Serialization;
 
 namespace Models
 {
@@ -45,4 +45,31 @@ namespace Models
                    new string('-', 50);
         }
     }
+
+    public class CandlestickData
+    {
+        [JsonPropertyName("date")]
+        public DateTime Date { get; set; }
+
+        [JsonPropertyName("open")]
+        public double Open { get; set; }
+
+        [JsonPropertyName("high")]
+        public double High { get; set; }
+
+        [JsonPropertyName("low")]
+        public double Low { get; set; }
+
+        [JsonPropertyName("close")]
+        public double Close { get; set; }
+
+        [JsonPropertyName("volume")]
+        public double Volume { get; set; } 
+
+        public override string ToString()
+        {
+            return $"Date: {Date}, Open: {Open}, High: {High}, Low: {Low}, Close: {Close}, Volume: {Volume}";
+        }
+    }
+
 }
