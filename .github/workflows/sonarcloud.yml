@@ -34,8 +34,11 @@ jobs:
           /d:sonar.token="${{ secrets.SONAR_TOKEN }}"
           /d:sonar.cs.analyzeRazorCode=true
 
+      - name: Restore dependencies
+        run: dotnet restore FinalProjectUI/FinalProject.csproj
+        
       - name: Build
-        run: dotnet build --no-incremental
+        run: dotnet build FinalProjectUI/FinalProject.csproj --no-incremental --no-restore
 
       - name: End analysis
         env:
